@@ -3,7 +3,13 @@
 // Colour comes from the canvas CSS props --rain / --rain-head so the Tweaks
 // panel can recolour live. Density / speed come from data-* attributes.
 (function () {
-  const GLYPHS = "アァカサタナハマヤラワン日二三四五ヲンﾊﾐﾋｰｳｼ0123456789:.=*+-<>¦|╱╲";
+  const GLYPHS =
+    "アァカサタナハマヤラワンイゥゴゲゼボォドベヂヅェォクグケゾ" +
+    "ｱｲｳｴｵｶｷｸｹｺﾊﾐﾋｰｳｼﾅﾆﾇﾈﾎﾏﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ" +
+    "日二三四五六七八九十百千万円時分秒月火水木金土" +
+    "ΞΨΩΣΔΦΓΛΘΠ" +
+    "0123456789" +
+    ":.=*+-<>¦|╱╲#%&@$/\\{}[]^~_†‡●◦▪╳⟁⟆";
   const rnd = () => GLYPHS[(Math.random() * GLYPHS.length) | 0];
   const instances = [];
   const resizers = [];
@@ -77,16 +83,41 @@
   }
 
   let started = false;
-  function loop() { for (const t of instances) t(); requestAnimationFrame(loop); }
+  let running = true;        // pauses when tab hidden or hero off-screen
+  let last = 0;
+  const FRAME_MS = 33;       // ~30fps cap — plenty for rain, half the work of 60fps
+
+  function loop(ts) {
+    requestAnimationFrame(loop);
+    if (!running) return;
+    if (ts - last < FRAME_MS) return;
+    last = ts;
+    for (const t of instances) t();
+  }
 
   window.matrixReseed = function () { resizers.forEach((r) => r()); };
 
   window.initMatrixRain = function () {
-    document.querySelectorAll("canvas.matrix-rain").forEach(makeRain);
+    const canvases = document.querySelectorAll("canvas.matrix-rain");
+    canvases.forEach(makeRain);
     if (instances.length && !started) {
       started = true;
-      loop();
-      setInterval(function () { for (const t of instances) t(); }, 45);
+      let visible = true;
+      requestAnimationFrame(loop);
+
+      // Pause when the tab is backgrounded — saves battery/CPU entirely.
+      document.addEventListener("visibilitychange", function () {
+        running = !document.hidden && visible;
+      });
+
+      // Pause when no rain canvas is on screen (e.g. scrolled past the hero).
+      if ("IntersectionObserver" in window) {
+        const io = new IntersectionObserver(function (entries) {
+          visible = entries.some((e) => e.isIntersecting);
+          running = !document.hidden && visible;
+        }, { threshold: 0.01 });
+        canvases.forEach((c) => io.observe(c));
+      }
     }
   };
 
